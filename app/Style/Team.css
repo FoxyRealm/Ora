@@ -1,0 +1,40 @@
+.team-view .team-card, .team-view .role-card { transition: transform .16s ease, box-shadow .16s ease; }
+.team-view .team-card:hover, .team-view .role-card:hover { transform: translateY(-2px); }
+.team-view .performance-grid { align-items: start; }
+
+.team-view .employee-details > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 25px;
+  align-items: center;
+  gap: 5px;
+  list-style: none;
+  cursor: pointer;
+}
+.team-view .employee-details > summary::-webkit-details-marker { display: none; }
+.team-view .employee-details > summary::marker { content: ""; }
+.team-view .employee-details > summary:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--teal) 55%, transparent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.team-view .employee-details > summary > svg {
+  color: var(--muted);
+  transition: transform .2s ease, color .2s ease;
+}
+.team-view .employee-details[open] > summary > svg {
+  color: var(--teal);
+  transform: rotate(90deg);
+}
+.team-view .employee-details .staff-kpis {
+  width: 100%;
+  border-bottom: 0;
+}
+.team-view .employee-details-content {
+  border-top: 1px solid var(--line);
+  animation: employee-details-in .2s ease both;
+}
+
+@keyframes employee-details-in {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}

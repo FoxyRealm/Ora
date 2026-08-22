@@ -1,0 +1,2 @@
+/* Shared page primitives live here; interface files below contain page-specific rules. */
+.demo-note { max-width: 470px; }

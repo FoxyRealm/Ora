@@ -1,0 +1,2 @@
+.inventory-view .material-card { transition: transform .16s ease, border-color .16s ease; }
+.inventory-view .material-card:hover { transform: translateY(-2px); border-color: var(--teal); }

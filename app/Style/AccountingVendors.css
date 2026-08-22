@@ -1,0 +1,23 @@
+.vendors-page { display: grid; gap: 16px; }
+.vendors-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.vendors-heading > div > span { color: var(--finance-muted); font-size: 8px; font-weight: 850; letter-spacing: .7px; text-transform: uppercase; }
+.vendors-heading h2 { margin: 4px 0; font-size: 22px; }
+.vendors-heading p { color: var(--finance-muted); font-size: 10px; }
+.vendors-card { overflow: hidden; border: 1px solid var(--finance-line); border-radius: 7px; background: var(--finance-paper); }
+.vendors-card-header { padding: 15px 16px; border-bottom: 1px solid var(--finance-line); }
+.vendors-card-header h3 { font-size: 13px; }
+.vendors-card-header p { margin-top: 4px; color: var(--finance-muted); font-size: 9px; }
+.vendors-table { min-width: 1010px; }
+.vendors-table td { white-space: nowrap; }
+.vendor-name, .vendor-contact { display: inline-flex; align-items: center; gap: 7px; }
+.vendor-name > span { display: grid; place-items: center; width: 27px; height: 27px; border-radius: 5px; background: #e7f0f6; color: var(--finance-blue); }
+.vendor-name strong { font-size: 10px; }
+.vendor-contact { color: var(--finance-muted); font-size: 9px; }
+.vendor-balance { color: #a15254; font-size: 10px; font-weight: 820; font-variant-numeric: tabular-nums; text-align: right; }
+.vendor-currency { display: inline-flex; padding: 4px 6px; border-radius: 4px; background: #edf3f1; color: var(--finance-teal); font-size: 8px; font-weight: 850; }
+.vendors-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 18px; }
+.vendors-form .field { min-width: 0; }
+.vendors-form .field.span-2, .vendors-form .modal-actions { grid-column: span 2; }
+.vendors-form input, .vendors-form select { width: 100%; }
+html[data-theme="dark"] .vendor-name > span { background: #1f3543; color: #a7d0e9; }
+@media (max-width: 640px) { .vendors-heading { flex-direction: column; }.vendors-heading > .primary-button { width: 100%; }.vendors-form { grid-template-columns: 1fr; }.vendors-form .field.span-2, .vendors-form .modal-actions { grid-column: auto; } }

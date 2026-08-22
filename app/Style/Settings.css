@@ -1,0 +1,118 @@
+.settings-view .settings-band { transition: border-color .16s ease, background-color .16s ease; }
+.settings-view .settings-band:hover { border-color: var(--teal); }
+
+.settings-view .settings-accordion { overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); }
+.settings-accordion > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 58px; padding: 0 14px; }
+.settings-accordion > header > button { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 13px; font-weight: 400; text-align: left; }
+.settings-accordion > header > button > svg { flex: 0 0 auto; color: var(--muted); transition: transform .28s ease, color .2s ease; }
+.settings-accordion.expanded > header > button > svg { transform: rotate(90deg); color: var(--teal); }
+.settings-accordion-action { flex: 0 0 auto; }
+.settings-accordion:not(.expanded) .settings-accordion-action { display: none; }
+.settings-accordion > .expand-shell > div { padding: 0; }
+.settings-accordion.expanded > .expand-shell > div { padding: 0 14px 14px; }
+.settings-accordion .panel { overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.settings-accordion .catalog-columns > div:first-child { border-top: 1px solid var(--line); }
+html[data-theme="dark"] .settings-view .settings-accordion { border-color: #3d4348; background: #24272b; }
+html[data-theme="dark"] .settings-accordion > .expand-shell > div { background: #24272b; }
+
+.settings-view .catalog-columns { grid-template-columns: 1fr; }
+.settings-view .catalog-columns > div {
+  min-height: 0;
+  padding: 16px;
+  border-right: 0;
+  border-bottom: 1px solid var(--line);
+}
+.settings-view .catalog-columns > div:last-child { border-bottom: 0; }
+.settings-view .catalog-tags {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+.settings-view .catalog-tags > .catalog-tag {
+  min-width: 0;
+  min-height: 60px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px 24px;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--canvas);
+}
+.settings-view .catalog-card-copy {
+  min-width: 0;
+  display: grid;
+  align-content: space-between;
+  align-self: stretch;
+  gap: 7px;
+}
+.settings-view .catalog-card-copy small,
+.settings-view .catalog-card-copy strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-view .catalog-card-copy small {
+  color: var(--muted);
+  font-size: 7px;
+}
+.settings-view .catalog-card-copy strong {
+  color: var(--ink);
+  font-size: 9px;
+}
+.settings-view .catalog-tags > .catalog-tag.editing {
+  border: 1px solid color-mix(in srgb, var(--teal) 45%, var(--line));
+  background: var(--teal-soft);
+}
+.settings-view .catalog-tag.editing .catalog-card-copy input {
+  width: 100%;
+  height: 25px;
+  padding: 0 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.settings-view .catalog-tags > .catalog-tag > button {
+  width: 24px;
+  height: 24px;
+}
+
+/* Desktop compares both clinical workflows at once; phones retain the compact switch. */
+.workflow-settings-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.workflow-order-column { min-width: 0; padding: 12px; background: var(--paper); }
+.workflow-order-column + .workflow-order-column { border-left: 1px solid var(--line); }
+.workflow-order-column-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.workflow-order-column-heading > div { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.workflow-order-column-heading span { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 5px; background: var(--canvas); color: var(--teal); font-size: 9px; font-weight: 800; }
+.workflow-order-column-heading h4 { font-size: 12px; font-weight: 500; }
+.workflow-order-column .workflow-order-list { margin: 0; border: 0; border-radius: 0; }
+.workflow-mobile-toggle { display: none; }
+.settings-view .catalog-form { width: min(100%, 470px); }
+.settings-view .catalog-form input[type="number"] { flex: 0 0 92px; }
+
+html[data-theme="dark"] .workflow-settings-columns { border-color: #3d4348; }
+html[data-theme="dark"] .workflow-order-column { background: #202428; }
+html[data-theme="dark"] .workflow-order-column + .workflow-order-column { border-color: #3d4348; }
+html[data-theme="dark"] .workflow-order-column-heading span { background: #293034; color: #81c9bd; }
+
+@media (max-width: 1180px) {
+  .settings-view .catalog-tags { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 680px) {
+  .settings-view .catalog-tags { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 700px) {
+  .workflow-settings-columns { grid-template-columns: 1fr; }
+  .workflow-mobile-toggle { display: flex; }
+  .workflow-order-column.mobile-workflow-hidden { display: none; }
+  .workflow-order-column + .workflow-order-column { border-left: 0; }
+  .workflow-order-column { padding: 0; }
+  .workflow-order-column-heading { display: none; }
+  .settings-view .catalog-form { width: 100%; }
+}
