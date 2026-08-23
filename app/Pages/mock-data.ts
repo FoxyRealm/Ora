@@ -100,6 +100,14 @@ export interface Doctor {
   phone: string;
   address: string;
   priceList: Record<string, number>;
+  /** Set when the doctor confirms their current price list for one-time use. */
+  priceListApprovedAt?: string;
+  /** Price-list changes shown to this doctor in the portal notification centre. */
+  priceListUpdates?: {
+    id: string;
+    date: string;
+    changes: { service: string; previousPrice: number | null; nextPrice: number }[];
+  }[];
   active?: boolean;
   /** Demo credentials shown by the frontend doctor portal. */
   portalAccount?: {
@@ -495,6 +503,28 @@ export function migrateOraData(value: Partial<OraData>): OraData {
       service,
       Number(doctor.priceList?.[service] ?? 0),
     ])),
+    priceListApprovedAt:
+      typeof doctor.priceListApprovedAt === "string"
+        ? doctor.priceListApprovedAt
+        : undefined,
+    priceListUpdates: Array.isArray(doctor.priceListUpdates)
+      ? doctor.priceListUpdates
+          .filter((update) => update && typeof update === "object")
+          .map((update, index) => ({
+            id: typeof update.id === "string" ? update.id : `price-update-${doctor.id}-${index}`,
+            date: typeof update.date === "string" ? update.date : new Date().toISOString(),
+            changes: Array.isArray(update.changes)
+              ? update.changes
+                  .filter((change) => change && typeof change.service === "string")
+                  .map((change) => ({
+                    service: change.service,
+                    previousPrice: typeof change.previousPrice === "number" ? change.previousPrice : null,
+                    nextPrice: Number(change.nextPrice) || 0,
+                  }))
+              : [],
+          }))
+          .filter((update) => update.changes.length > 0)
+      : [],
     portalAccount: doctor.portalAccount
       && typeof doctor.portalAccount.username === "string"
       && typeof doctor.portalAccount.password === "string"

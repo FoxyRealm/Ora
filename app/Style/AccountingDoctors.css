@@ -1,0 +1,89 @@
+.accounting-doctors-page { display: grid; gap: 16px; }
+.accounting-doctors-layout { display: grid; grid-template-columns: minmax(230px, 280px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.accounting-doctors-directory, .accounting-doctors-account, .accounting-doctors-section { border: 1px solid var(--finance-line); border-radius: 7px; background: var(--finance-paper); }
+.accounting-doctors-directory { overflow: hidden; }
+.accounting-doctors-directory > header { display: flex; align-items: center; gap: 10px; padding: 15px; border-bottom: 1px solid var(--finance-line); }
+.accounting-doctors-directory > header > svg { color: var(--finance-teal); }
+.accounting-doctors-directory > header strong, .accounting-doctors-directory > header small { display: block; }
+.accounting-doctors-directory > header strong { color: var(--finance-ink); font-size: 12px; }
+.accounting-doctors-directory > header small { margin-top: 3px; color: var(--finance-muted); font-size: 9px; }
+.accounting-doctors-directory section { display: grid; padding: 9px; border-bottom: 1px solid var(--finance-line); }
+.accounting-doctors-directory section:last-child { border-bottom: 0; }
+.accounting-doctors-directory section > small { padding: 2px 6px 7px; color: var(--finance-muted); font-size: 8px; font-weight: 850; letter-spacing: .6px; text-transform: uppercase; }
+.accounting-doctors-directory section > button { min-width: 0; display: grid; grid-template-columns: 30px minmax(0, 1fr) 15px; align-items: center; gap: 8px; min-height: 49px; padding: 7px; border: 0; border-radius: 5px; background: transparent; color: var(--finance-ink); text-align: left; }
+.accounting-doctors-directory section > button:hover { background: var(--finance-canvas); }
+.accounting-doctors-directory section > button.active { background: color-mix(in srgb, var(--finance-teal) 15%, var(--finance-paper)); box-shadow: inset 3px 0 0 var(--finance-teal); }
+.accounting-doctors-directory section > button > span:nth-child(2) { min-width: 0; }
+.accounting-doctors-directory section > button strong, .accounting-doctors-directory section > button small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.accounting-doctors-directory section > button strong { font-size: 10px; }
+.accounting-doctors-directory section > button small { margin-top: 3px; color: var(--finance-muted); font-size: 8px; }
+.accounting-doctors-directory section > button > svg { color: var(--finance-muted); }
+.accounting-doctor-avatar, .accounting-clinic-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: #e1f1ed; color: #176c60; font-size: 11px; font-weight: 850; }
+.accounting-clinic-icon { border-radius: 6px; background: #e5eff7; color: #286489; }
+.accounting-doctors-account { overflow: hidden; }
+.accounting-doctors-account-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 17px; border-bottom: 1px solid var(--finance-line); }
+.accounting-doctors-account-head > div:first-child > span { color: var(--finance-teal); font-size: 8px; font-weight: 850; letter-spacing: .6px; text-transform: uppercase; }
+.accounting-doctors-account-head h3 { margin: 4px 0; color: var(--finance-ink); font-size: 17px; }
+.accounting-doctors-account-head p { color: var(--finance-muted); font-size: 10px; }
+.accounting-doctors-account-head > div:last-child { min-width: 120px; padding: 10px 12px; border: 1px solid #b9ddd4; border-radius: 6px; background: #edf6f3; text-align: right; }
+.accounting-doctors-account-head > div:last-child small { display: block; color: #47736b; font-size: 8px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; }
+.accounting-doctors-account-head > div:last-child strong { display: block; margin-top: 5px; color: #176c60; font-size: 15px; }
+.accounting-doctors-section { margin: 14px; overflow: hidden; }
+.accounting-doctors-section > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 15px; border-bottom: 1px solid var(--finance-line); }
+.accounting-doctors-section > header > div { display: flex; align-items: center; gap: 9px; }
+.accounting-doctors-section > header svg { color: var(--finance-teal); }
+.accounting-doctors-section h3 { color: var(--finance-ink); font-size: 13px; }
+.accounting-doctors-section p { margin-top: 3px; color: var(--finance-muted); font-size: 9px; }
+.accounting-doctors-section > header > strong { min-width: 25px; height: 25px; display: grid; place-items: center; border-radius: 999px; background: var(--finance-canvas); color: var(--finance-muted); font-size: 10px; }
+.accounting-doctors-invoice-table, .accounting-doctors-payments-table { min-width: 760px; }
+.accounting-doctors-row { cursor: pointer; }
+.accounting-doctors-row:hover td { background: var(--finance-canvas); }
+.accounting-doctors-row small { display: block; max-width: 190px; overflow: hidden; color: var(--finance-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.accounting-doctors-row .table-link { font-size: 11px; }
+.accounting-doctors-empty { padding: 28px !important; color: var(--finance-muted); font-size: 10px; text-align: center; }
+.accounting-doctors-method { display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px; border-radius: 4px; font-size: 8px; font-weight: 800; white-space: nowrap; }
+.accounting-doctors-method.cash { background: #fff0d5; color: #94601c; }
+.accounting-doctors-method.bank { background: #e5eff7; color: #2c668d; }
+.accounting-doctors-amount { color: #176c60; font-weight: 850; text-align: right; }
+.accounting-doctors-empty-state { min-height: 360px; display: grid; place-content: center; justify-items: center; gap: 10px; border: 1px dashed var(--finance-line); border-radius: 7px; color: var(--finance-muted); text-align: center; }
+.accounting-statement-content { padding: 18px; }
+.accounting-statement-period { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(145px, 1fr) minmax(145px, 1fr); gap: 10px; align-items: end; }
+.accounting-statement-period > .field { min-width: 0; }
+.accounting-statement-range { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; padding: 9px 10px; border: 1px solid #b9ddd4; border-radius: 6px; background: #edf6f3; color: #387168; font-size: 10px; font-weight: 750; }
+.accounting-statement-range svg { color: var(--finance-teal); }
+.accounting-statement-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 14px; }
+.accounting-statement-summary > div { padding: 12px; border: 1px solid var(--finance-line); border-radius: 6px; background: var(--finance-canvas); }
+.accounting-statement-summary small { display: block; color: var(--finance-muted); font-size: 8px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; }
+.accounting-statement-summary strong { display: block; margin-top: 6px; color: var(--finance-ink); font-size: 15px; }
+.accounting-doctor-drawer-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(12, 23, 20, .42); backdrop-filter: blur(2px); }
+.accounting-doctor-drawer { position: absolute; inset: 0 0 0 auto; width: min(480px, 100vw); background: var(--finance-paper); box-shadow: -16px 0 50px rgba(11, 24, 20, .2); animation: payments-drawer-in .28s cubic-bezier(.2, .85, .25, 1); }
+.accounting-doctor-drawer > header { display: flex; justify-content: space-between; gap: 15px; min-height: 96px; padding: 18px 22px; border-bottom: 1px solid var(--finance-line); background: var(--finance-paper); }
+.accounting-doctor-drawer > header span { display: block; color: var(--finance-teal); font-size: 9px; font-weight: 800; }
+.accounting-doctor-drawer h2 { margin: 6px 0 2px; color: var(--finance-ink); font-size: 17px; }
+.accounting-doctor-drawer p { color: var(--finance-muted); font-size: 9px; }
+.accounting-doctor-drawer-body { display: grid; gap: 13px; padding: 16px; }
+.accounting-doctor-payment-amount { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; padding: 15px; border: 1px solid #b9ddd4; border-radius: 7px; background: #edf6f3; }
+.accounting-doctor-payment-amount small { width: 100%; color: #47736b; font-size: 8px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; }
+.accounting-doctor-payment-amount strong { flex: 1; color: #176c60; font-size: 22px; }
+.accounting-doctor-payment-amount > span { display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px; border-radius: 4px; font-size: 8px; font-weight: 800; }
+.accounting-doctor-payment-amount > span.cash { background: #fff0d5; color: #94601c; }
+.accounting-doctor-payment-amount > span.bank { background: #e5eff7; color: #2c668d; }
+.accounting-doctor-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.accounting-doctor-detail-grid > div { min-height: 66px; padding: 10px; border: 1px solid var(--finance-line); border-radius: 6px; background: var(--finance-canvas); }
+.accounting-doctor-detail-grid small { display: block; color: var(--finance-muted); font-size: 8px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; }
+.accounting-doctor-detail-grid strong { display: block; margin-top: 5px; color: var(--finance-ink); font-size: 11px; line-height: 1.35; }
+.accounting-doctor-detail-grid .span-2 { grid-column: span 2; }
+
+html[data-theme="dark"] .accounting-doctors-directory section > button:hover, html[data-theme="dark"] .accounting-doctors-row:hover td { background: #2b3034; }
+html[data-theme="dark"] .accounting-doctors-directory section > button.active { background: #213f38; }
+html[data-theme="dark"] .accounting-doctors-account-head > div:last-child, html[data-theme="dark"] .accounting-statement-range, html[data-theme="dark"] .accounting-doctor-payment-amount { border-color: #346259; background: #213f38; }
+html[data-theme="dark"] .accounting-doctors-account-head > div:last-child small, html[data-theme="dark"] .accounting-statement-range, html[data-theme="dark"] .accounting-doctor-payment-amount small { color: #a8d8cc; }
+html[data-theme="dark"] .accounting-doctors-account-head > div:last-child strong, html[data-theme="dark"] .accounting-doctor-payment-amount strong { color: #c6e7df; }
+html[data-theme="dark"] .accounting-doctor-avatar { background: #285047; color: #bfe3da; }
+html[data-theme="dark"] .accounting-clinic-icon { background: #243b4a; color: #a9cee7; }
+html[data-theme="dark"] .accounting-doctors-method.cash, html[data-theme="dark"] .accounting-doctor-payment-amount > span.cash { background: #3a3024; color: #e4c495; }
+html[data-theme="dark"] .accounting-doctors-method.bank, html[data-theme="dark"] .accounting-doctor-payment-amount > span.bank { background: #243b4a; color: #a9cee7; }
+html[data-theme="dark"] .accounting-doctor-drawer > header { background: #24272b; }
+
+@media (max-width: 860px) { .accounting-doctors-layout { grid-template-columns: 1fr; }.accounting-doctors-directory { display: grid; grid-template-columns: 1fr 1fr; }.accounting-doctors-directory > header { grid-column: 1 / -1; }.accounting-doctors-directory section:first-of-type { border-right: 1px solid var(--finance-line); border-bottom: 0; } }
+@media (max-width: 640px) { .accounting-doctors-directory { grid-template-columns: 1fr; }.accounting-doctors-directory section:first-of-type { border-right: 0; border-bottom: 1px solid var(--finance-line); }.accounting-doctors-account-head { align-items: flex-start; flex-direction: column; }.accounting-doctors-account-head > div:last-child { width: 100%; text-align: left; }.accounting-doctors-section { margin: 10px; }.accounting-statement-content { padding: 16px; }.accounting-statement-period, .accounting-statement-summary, .accounting-doctor-detail-grid { grid-template-columns: 1fr; }.accounting-doctor-detail-grid .span-2 { grid-column: auto; }.accounting-doctors-section > header { align-items: flex-start; }.accounting-doctor-drawer { width: 100%; }.accounting-doctor-drawer > header { padding: 16px; } }

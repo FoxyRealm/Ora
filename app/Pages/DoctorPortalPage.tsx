@@ -16,6 +16,7 @@ import {
   ChevronRight,
   ClipboardList,
   Clock3,
+  Download,
   FileText,
   Gauge,
   LayoutDashboard,
@@ -40,6 +41,7 @@ import {
   X,
 } from "lucide-react";
 import DentalReferenceChart from "../Components/DentalReferenceChart";
+import { printInvoicePages } from "../Components/InvoicePrint";
 import TablePagination, { useTablePagination } from "../Components/TablePagination";
 import type {
   CaseServiceLine,
@@ -59,7 +61,7 @@ interface DoctorPortalNotification {
   title: string;
   subject: string;
   caseId?: string;
-  destination: "cases" | "delivery";
+  destination: "cases" | "delivery" | "invoices";
   tone: string;
 }
 
@@ -95,10 +97,7 @@ function printDoctorInvoices(
   invoices: LabCase[],
 ) {
   if (!invoices.length) return false;
-  const popup = window.open("", "_blank", "width=900,height=900");
-  if (!popup) return false;
-  const pages = invoices
-    .map((labCase) => {
+  return printInvoicePages(invoices.map((labCase) => {
       const serviceLines = labCase.serviceLines?.length
         ? labCase.serviceLines
         : [
@@ -109,60 +108,95 @@ function printDoctorInvoices(
               unitPrice: labCase.price / Math.max(1, labCase.units),
             },
           ];
-      const services = serviceLines
-        .map(
-          (line) => `<tr>
-            <td><strong>${escapePrintHtml(line.service)}</strong><small>Shade: ${escapePrintHtml(line.shade || "Not recorded")}</small></td>
-            <td class="num">${escapePrintHtml(line.units)}</td>
-            <td class="num">${escapePrintHtml(formatMoney(line.unitPrice, data.currency))}</td>
-            <td class="num"><strong>${escapePrintHtml(formatMoney(line.units * line.unitPrice, data.currency))}</strong></td>
-          </tr>`,
-        )
-        .join("");
       const payments = data.payments
         .filter((payment) => payment.caseId === labCase.id)
         .sort((first, second) => first.date.localeCompare(second.date));
-      const paymentRows = payments.length
-        ? payments
-            .map(
-              (payment) => `<tr>
-                <td>${escapePrintHtml(new Date(payment.date).toLocaleString("en-GB"))}</td>
-                <td>${payment.amount < 0 ? "Payment correction" : "Payment received"}</td>
-                <td class="num ${payment.amount < 0 ? "negative" : "positive"}">${payment.amount < 0 ? "-" : "+"}${escapePrintHtml(formatMoney(Math.abs(payment.amount), data.currency))}</td>
-              </tr>`,
-            )
-            .join("")
-        : '<tr><td colspan="3" class="empty">No payments recorded</td></tr>';
       const remaining = Math.max(0, labCase.price - labCase.paid);
-      return `<main class="invoice-page">
-        <header class="invoice-head">
-          <div class="brand">${escapePrintHtml(data.branding.title)}<small>${escapePrintHtml(data.branding.subtitle)}</small></div>
-          <div class="invoice-title"><small>Invoice</small><h1>INV-${escapePrintHtml(labCase.caseNumber)}</h1><span class="status ${invoiceStatus(labCase).toLowerCase()}">${escapePrintHtml(invoiceStatus(labCase))}</span></div>
-        </header>
-        <section class="invoice-meta">
-          <div><small>Doctor</small><strong>${escapePrintHtml(doctor.name)}</strong><span>${escapePrintHtml(doctor.clinic)}</span></div>
-          <div><small>Patient</small><strong>${escapePrintHtml(labCase.patient || "Not recorded")}</strong></div>
-          <div><small>Issued</small><strong>${escapePrintHtml(formatDate(labCase.receivedDate))}</strong></div>
-          <div><small>Case</small><strong>${escapePrintHtml(labCase.caseNumber)}</strong></div>
-        </section>
-        <table class="service-table"><thead><tr><th>Service</th><th class="num">Units</th><th class="num">Unit price</th><th class="num">Amount</th></tr></thead><tbody>${services}</tbody></table>
-        <section class="invoice-bottom">
-          <div class="payment-history"><h2>Payment history</h2><table><tbody>${paymentRows}</tbody></table></div>
-          <div class="totals">
-            <div><span>Invoice total</span><strong>${escapePrintHtml(formatMoney(labCase.price, data.currency))}</strong></div>
-            <div><span>Paid</span><strong>${escapePrintHtml(formatMoney(labCase.paid, data.currency))}</strong></div>
-            <div class="balance"><span>Balance due</span><strong>${escapePrintHtml(formatMoney(remaining, data.currency))}</strong></div>
-          </div>
-        </section>
-      </main>`;
-    })
+      return { number: `INV-${labCase.caseNumber}`, status: invoiceStatus(labCase), brandTitle: data.branding.title, brandSubtitle: data.branding.subtitle, doctor: doctor.name, clinic: doctor.clinic, patient: labCase.patient || "Not recorded", issued: formatDate(labCase.receivedDate), caseNumber: labCase.caseNumber, services: serviceLines.map((line) => ({ service: line.service, shade: line.shade || "Not recorded", units: String(line.units), unitPrice: formatMoney(line.unitPrice, data.currency), amount: formatMoney(line.units * line.unitPrice, data.currency) })), payments: payments.map((payment) => ({ date: new Date(payment.date).toLocaleString("en-GB"), label: payment.amount < 0 ? "Payment correction" : "Payment received", amount: formatMoney(Math.abs(payment.amount), data.currency), negative: payment.amount < 0 })), total: formatMoney(labCase.price, data.currency), paid: formatMoney(labCase.paid, data.currency), balance: formatMoney(remaining, data.currency) };
+    }));
+}
+
+function doctorPriceListRows(data: OraData, doctor: Doctor) {
+  return data.serviceTypes.map((service) => ({
+    service,
+    price: Number(doctor.priceList[service] ?? 0),
+  }));
+}
+
+function printDoctorPriceList(data: OraData, doctor: Doctor) {
+  const rows = doctorPriceListRows(data, doctor)
+    .map(
+      ({ service, price }) => `<tr>
+        <td>${escapePrintHtml(service)}</td>
+        <td>${escapePrintHtml(formatMoney(price, data.currency))}</td>
+        <td>per unit</td>
+      </tr>`,
+    )
     .join("");
-  popup.document.write(`<!doctype html><html><head><title>${invoices.length === 1 ? `INV-${escapePrintHtml(invoices[0].caseNumber)}` : `${invoices.length} Ora invoices`}</title><style>
-    *{box-sizing:border-box}body{margin:0;background:#edf2f0;color:#17211f;font-family:Arial,sans-serif;font-size:12px}.invoice-page{width:210mm;min-height:297mm;margin:12px auto;padding:18mm;background:#fff;box-shadow:0 4px 18px rgba(20,55,49,.12);page-break-after:always}.invoice-page:last-child{page-break-after:auto}.invoice-head{display:flex;align-items:flex-start;justify-content:space-between;gap:30px;padding-bottom:20px;border-bottom:2px solid #15695f}.brand{color:#15695f;font-size:28px;font-weight:800}.brand small{display:block;margin-top:4px;color:#65726f;font-size:9px;letter-spacing:1px;text-transform:uppercase}.invoice-title{text-align:right}.invoice-title>small{color:#65726f;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase}.invoice-title h1{margin:4px 0 8px;font-size:22px}.status{display:inline-block;padding:4px 8px;border-radius:12px;background:#edf1f0;color:#5b6d69;font-size:9px;font-weight:800;text-transform:uppercase}.status.paid{background:#e4f4ec;color:#17653f}.status.partial{background:#fff2df;color:#9a5d1d}.status.overdue{background:#fce9e7;color:#a63d35}.invoice-meta{display:grid;grid-template-columns:1.4fr 1.2fr .8fr .6fr;gap:8px;margin:20px 0}.invoice-meta>div{min-height:64px;padding:11px;border:1px solid #dce5e2;background:#f8fbfa}.invoice-meta small,.invoice-meta strong,.invoice-meta span{display:block}.invoice-meta small{color:#65726f;font-size:8px;font-weight:700;letter-spacing:.6px;text-transform:uppercase}.invoice-meta strong{margin-top:5px;font-size:12px}.invoice-meta span{margin-top:3px;color:#6e7d7a;font-size:9px}table{width:100%;border-collapse:collapse}.service-table{margin-top:10px}.service-table th{padding:9px;background:#edf4f2;color:#4e625e;font-size:9px;text-align:left;text-transform:uppercase}.service-table td{padding:11px 9px;border-bottom:1px solid #dde7e4}.service-table td small{display:block;margin-top:4px;color:#6e7d7a;font-size:9px}.num{text-align:right!important}.invoice-bottom{display:grid;grid-template-columns:minmax(0,1fr) 245px;gap:32px;margin-top:26px}.payment-history h2{margin:0 0 8px;font-size:12px}.payment-history td{padding:7px 5px;border-bottom:1px solid #e3eae8;color:#52645f;font-size:9px}.payment-history .empty{text-align:center}.positive{color:#176d60!important}.negative{color:#a63d35!important}.totals>div{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid #dce5e2}.totals .balance{margin-top:4px;padding-top:11px;border-top:2px solid #17211f;border-bottom:0;color:#155f57;font-size:15px}@media print{body{background:#fff}.invoice-page{width:auto;min-height:0;margin:0;padding:0;box-shadow:none}@page{size:A4 portrait;margin:16mm}}
-  </style></head><body>${pages}<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),120));<\/script></body></html>`);
+  const popup = window.open("", "_blank", "width=820,height=900");
+  if (!popup) return false;
+  popup.document.write(`<!doctype html><html><head><title>${escapePrintHtml(doctor.name)} price list</title><style>
+    *{box-sizing:border-box}body{margin:0;padding:38px;color:#17211f;font-family:Arial,sans-serif;font-size:12px}.head{display:flex;justify-content:space-between;gap:24px;padding-bottom:20px;border-bottom:2px solid #15695f}.brand{font-size:28px;font-weight:800;color:#15695f}.brand small,.meta small{display:block;margin-top:4px;color:#65726f;font-size:9px;letter-spacing:1px;text-transform:uppercase}.title{text-align:right}.title h1{margin:0;font-size:21px}.title p{margin:6px 0 0;color:#65726f}.meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:20px 0}.meta div{padding:11px;border:1px solid #dce5e2;background:#f8fbfa}.meta strong{display:block;margin-top:5px;font-size:12px}table{width:100%;border-collapse:collapse}th{padding:10px;background:#edf4f2;color:#4e625e;text-align:left;font-size:9px;letter-spacing:.6px;text-transform:uppercase}th:nth-child(2),th:nth-child(3){text-align:right}td{padding:12px 10px;border-bottom:1px solid #dde7e4}td:nth-child(2){font-weight:800;text-align:right}td:nth-child(3){color:#65726f;text-align:right}.note{margin-top:24px;padding-top:12px;border-top:1px solid #dce5e2;color:#65726f;font-size:10px}@media print{body{padding:0}@page{margin:18mm}}</style></head><body><header class="head"><div class="brand">${escapePrintHtml(data.branding.title)}<small>${escapePrintHtml(data.branding.subtitle)}</small></div><div class="title"><h1>My price list</h1><p>Issued ${escapePrintHtml(formatDate(new Date().toISOString().slice(0, 10)))}</p></div></header><section class="meta"><div><small>Doctor</small><strong>${escapePrintHtml(doctor.name)}</strong></div><div><small>Clinic</small><strong>${escapePrintHtml(doctor.clinic)}</strong></div></section><table><thead><tr><th>Service</th><th>Unit price</th><th>Basis</th></tr></thead><tbody>${rows}</tbody></table><p class="note">Prices are shown in ${escapePrintHtml(data.currency)} and are subject to the laboratory's current terms.</p><script>window.addEventListener('load',()=>setTimeout(()=>window.print(),120));<\/script></body></html>`);
   popup.document.close();
   return true;
 }
+
+async function exportDoctorPriceListPdf(data: OraData, doctor: Doctor) {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const rows = doctorPriceListRows(data, doctor);
+  let y = 20;
+  const drawHeader = () => {
+    doc.setTextColor(21, 95, 87);
+    doc.setFontSize(19);
+    doc.text(data.branding.title, 16, y);
+    doc.setTextColor(71, 91, 87);
+    doc.setFontSize(9);
+    doc.text(data.branding.subtitle, 16, y + 6);
+    doc.setTextColor(25, 33, 31);
+    doc.setFontSize(17);
+    doc.text("My price list", pageWidth - 16, y, { align: "right" });
+    doc.setFontSize(9);
+    doc.setTextColor(86, 104, 99);
+    doc.text(`Doctor: ${doctor.name}`, pageWidth - 16, y + 6, { align: "right" });
+    doc.text(`Clinic: ${doctor.clinic}`, pageWidth - 16, y + 11, { align: "right" });
+    y += 27;
+    doc.setDrawColor(188, 210, 204);
+    doc.line(16, y - 8, pageWidth - 16, y - 8);
+    doc.setFillColor(237, 244, 242);
+    doc.rect(16, y, pageWidth - 32, 8, "F");
+    doc.setTextColor(71, 91, 87);
+    doc.setFontSize(9);
+    doc.text("SERVICE", 20, y + 5.3);
+    doc.text("UNIT PRICE", pageWidth - 20, y + 5.3, { align: "right" });
+    y += 14;
+  };
+  drawHeader();
+  rows.forEach(({ service, price }) => {
+    if (y > 273) {
+      doc.addPage();
+      y = 20;
+      drawHeader();
+    }
+    doc.setTextColor(34, 45, 42);
+    doc.setFontSize(10);
+    const serviceLines = doc.splitTextToSize(service, pageWidth - 85);
+    doc.text(serviceLines, 20, y);
+    doc.setFontSize(10);
+    doc.setTextColor(21, 95, 87);
+    doc.text(`${formatMoney(price, data.currency)} / unit`, pageWidth - 20, y, { align: "right" });
+    const rowHeight = Math.max(9, serviceLines.length * 5 + 4);
+    doc.setDrawColor(222, 230, 227);
+    doc.line(16, y + rowHeight - 4, pageWidth - 16, y + rowHeight - 4);
+    y += rowHeight;
+  });
+  doc.setTextColor(101, 116, 112);
+  doc.setFontSize(8);
+  doc.text("Prices are shown per unit and are subject to the laboratory's current terms.", 16, 287);
+  doc.save(`${doctor.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase()}-price-list.pdf`);
+}
+
 function formatStatus(labCase: LabCase) {
   if (labCase.onHold) return "On hold";
   if (labCase.intakeApprovalPending) return "Awaiting Approval";
@@ -658,6 +692,98 @@ function InvoiceDrawer({
           >
             <Printer size={16} />
             Print invoice
+          </button>
+        </footer>
+      </aside>
+    </div>
+  );
+}
+
+function DoctorPriceListDrawer({
+  data,
+  doctor,
+  approvedAt,
+  onClose,
+  onApprove,
+}: {
+  data: OraData;
+  doctor: Doctor;
+  approvedAt: string | null;
+  onClose: () => void;
+  onApprove: () => void;
+}) {
+  const rows = doctorPriceListRows(data, doctor);
+  return (
+    <div
+      className="doctor-portal-drawer-backdrop"
+      onMouseDown={(event) => event.currentTarget === event.target && onClose()}
+    >
+      <aside
+        className="doctor-portal-drawer doctor-price-list-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="My price list"
+      >
+        <header>
+          <div>
+            <span>Billing</span>
+            <h2>My price list</h2>
+          </div>
+          <button
+            className="portal-icon-button"
+            type="button"
+            onClick={onClose}
+            aria-label="Close price list"
+          >
+            <X size={18} />
+          </button>
+        </header>
+        <section className="doctor-price-list-summary">
+          <FileText size={18} />
+          <div>
+            <strong>{doctor.name}</strong>
+            <small>{doctor.clinic}</small>
+          </div>
+          <span>{data.currency}</span>
+        </section>
+        <section className="doctor-price-list-table" aria-label="Service prices">
+          <header>
+            <span>Service</span>
+            <span>Unit price</span>
+          </header>
+          {rows.map(({ service, price }) => (
+            <div key={service}>
+              <strong title={service}>{service}</strong>
+              <span>{formatMoney(price, data.currency)} / unit</span>
+            </div>
+          ))}
+        </section>
+        <p className="doctor-price-list-note">
+          Prices are shown per unit and follow Ora&apos;s current laboratory terms.
+        </p>
+        <footer className="doctor-drawer-actions doctor-price-list-actions">
+          {approvedAt ? (
+            <span className="doctor-invoice-accepted">
+              <Check size={16} /> One-time approval recorded
+            </span>
+          ) : (
+            <button className="doctor-primary-button" type="button" onClick={onApprove}>
+              <Check size={16} /> Approve for one time only
+            </button>
+          )}
+          <button
+            className="portal-secondary-button"
+            type="button"
+            onClick={() => printDoctorPriceList(data, doctor)}
+          >
+            <Printer size={16} /> Print
+          </button>
+          <button
+            className="portal-secondary-button"
+            type="button"
+            onClick={() => void exportDoctorPriceListPdf(data, doctor)}
+          >
+            <Download size={16} /> Export PDF
           </button>
         </footer>
       </aside>
@@ -2026,6 +2152,8 @@ export default function DoctorPortalPage({
     null,
   );
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
+  const [priceListOpen, setPriceListOpen] = useState(false);
+  const priceListApprovedAt = doctor.priceListApprovedAt ?? null;
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
@@ -2489,7 +2617,21 @@ export default function DoctorPortalPage({
       }
       return updates;
     });
-  const notifications = [...caseNotifications, ...deliveryNotifications]
+  const priceListNotifications: DoctorPortalNotification[] = (doctor.priceListUpdates ?? []).map((update) => ({
+    id: update.id,
+    date: update.date,
+    title: "Your price list was updated.",
+    subject: update.changes
+      .map((change) =>
+        change.previousPrice === null
+          ? `${change.service} added at ${formatMoney(change.nextPrice, data.currency)}`
+          : `${change.service}: ${formatMoney(change.previousPrice, data.currency)} to ${formatMoney(change.nextPrice, data.currency)}`,
+      )
+      .join(" · "),
+    destination: "invoices" as const,
+    tone: "message",
+  }));
+  const notifications = [...caseNotifications, ...deliveryNotifications, ...priceListNotifications]
     .sort((first, second) => second.date.localeCompare(first.date))
     .slice(0, 8);
   const notificationsPanel = (
@@ -2509,6 +2651,10 @@ export default function DoctorPortalPage({
             onClick={() => {
               if (item.destination === "delivery") {
                 setView("delivery");
+                return;
+              }
+              if (item.destination === "invoices") {
+                setView("invoices");
                 return;
               }
               if ("caseId" in item && item.caseId) {
@@ -2808,6 +2954,14 @@ export default function DoctorPortalPage({
                 <div className="doctor-invoice-header-actions">
                   <p>{formatMoney(openBalance, data.currency)} outstanding</p>
                   <button
+                    className="portal-secondary-button doctor-price-list-button"
+                    type="button"
+                    onClick={() => setPriceListOpen(true)}
+                  >
+                    <FileText size={15} />
+                    My price list
+                  </button>
+                  <button
                     className="doctor-primary-button"
                     type="button"
                     disabled={!selectedInvoices.some((item) => !item.invoiceAcceptedAt)}
@@ -2954,6 +3108,26 @@ export default function DoctorPortalPage({
           labCase={selectedInvoice}
           onClose={() => setSelectedInvoiceId(null)}
           onAccept={acceptInvoices}
+        />
+      )}
+      {priceListOpen && (
+        <DoctorPriceListDrawer
+          data={data}
+          doctor={doctor}
+          approvedAt={priceListApprovedAt}
+          onClose={() => setPriceListOpen(false)}
+      onApprove={() => {
+        const approvedAt = new Date().toISOString();
+        onUpdate((current) => ({
+          ...current,
+          doctors: current.doctors.map((item) =>
+            item.id === doctor.id
+              ? { ...item, priceListApprovedAt: approvedAt }
+              : item,
+          ),
+        }));
+        setNotice("Price list approved for one-time use.");
+      }}
         />
       )}
       {selectedCase && (

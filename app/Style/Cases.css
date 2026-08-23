@@ -872,3 +872,32 @@ html[data-theme="dark"] .case-drawer .drawer-section :is(.secondary-button, .ico
   border-color: #475056;
   color: #edf1f1;
 }
+
+/* The lab invoice follows the Doctor Portal's focused account drawer. */
+.case-invoice-drawer-backdrop { position: fixed; inset: 0; z-index: 130; display: flex; justify-content: flex-end; background: rgba(8, 28, 24, .42); backdrop-filter: blur(2px); }
+.case-invoice-drawer { width: min(100%, 470px); min-height: 100%; overflow-y: auto; background: var(--paper); box-shadow: -12px 0 34px rgba(8, 28, 24, .19); animation: caseDrawerIn .22s ease-out; }
+.case-invoice-drawer > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 22px; border-bottom: 1px solid var(--line); }
+.case-invoice-drawer > header span { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; }
+.case-invoice-drawer > header h2 { margin: 5px 0 0; font-size: 22px; }
+.case-invoice-amount { position: relative; margin: 18px 22px; padding: 18px; border: 1px solid #b9dad2; border-radius: 7px; background: #eef8f5; }
+.case-invoice-amount > small { display: block; color: #55736c; font-size: 11px; }
+.case-invoice-amount > strong { display: block; margin-top: 5px; color: #155b50; font-size: 25px; }
+.case-invoice-amount .payment-badge { position: absolute; top: 18px; right: 18px; }
+.case-invoice-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin: 0 22px 18px; overflow: hidden; border: 1px solid var(--line); border-radius: 6px; }
+.case-invoice-detail-grid > div { padding: 12px; background: var(--canvas); }
+.case-invoice-detail-grid small, .case-invoice-detail-grid strong { display: block; }
+.case-invoice-detail-grid small { color: var(--muted); font-size: 9px; text-transform: uppercase; }
+.case-invoice-detail-grid strong { margin-top: 4px; font-size: 11px; }
+.case-invoice-acceptance { display: flex; align-items: center; gap: 9px; margin: 0 22px 18px; padding: 11px 12px; border: 1px solid #efcbd1; border-radius: 6px; background: #fdf0f1; color: #a04756; }
+.case-invoice-acceptance.accepted { border-color: #b9dad2; background: #eef8f5; color: #176453; }
+.case-invoice-acceptance span { min-width: 0; }.case-invoice-acceptance strong, .case-invoice-acceptance small { display: block; }.case-invoice-acceptance strong { font-size: 10px; }.case-invoice-acceptance small { margin-top: 3px; color: inherit; font-size: 9px; opacity: .8; }
+.case-invoice-services, .case-invoice-payments { margin: 0 22px 20px; }
+.case-invoice-services h3, .case-invoice-payments h3 { margin: 0 0 9px; font-size: 13px; }
+.case-invoice-services > div, .case-invoice-services footer, .case-invoice-payments > div { display: flex; justify-content: space-between; gap: 14px; padding: 11px 0; border-top: 1px solid var(--line); font-size: 11px; }
+.case-invoice-services > div > span, .case-invoice-payments > div > span { min-width: 0; }.case-invoice-services strong, .case-invoice-services small, .case-invoice-payments strong, .case-invoice-payments small { display: block; }.case-invoice-services small, .case-invoice-payments small { margin-top: 3px; color: var(--muted); font-size: 9px; }.case-invoice-services footer { color: var(--teal); font-weight: 800; }.case-invoice-payments b { color: var(--teal); font-size: 11px; }.case-invoice-payments b.negative { color: var(--red); }.case-invoice-payments p { color: var(--muted); font-size: 11px; }.case-invoice-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding: 0 22px 24px; }
+html[data-theme="dark"] .case-invoice-drawer { background: #24272b; color: #eef1f1; }
+html[data-theme="dark"] .case-invoice-drawer > header, html[data-theme="dark"] .case-invoice-detail-grid { border-color: #3d4348; }
+html[data-theme="dark"] .case-invoice-detail-grid > div { background: #202428; }
+html[data-theme="dark"] .case-invoice-amount { border-color: #346259; background: #213f38; }.case-invoice-amount > small { color: #55736c; }html[data-theme="dark"] .case-invoice-amount > small { color: #a8d8cc; }html[data-theme="dark"] .case-invoice-amount > strong { color: #c6e7df; }
+html[data-theme="dark"] .case-invoice-acceptance.pending { border-color: #74474e; background: #39262a; color: #efb8bf; }html[data-theme="dark"] .case-invoice-acceptance.accepted { border-color: #346259; background: #213f38; color: #c6e7df; }html[data-theme="dark"] .case-invoice-services > div, html[data-theme="dark"] .case-invoice-services footer, html[data-theme="dark"] .case-invoice-payments > div { border-color: #3d4348; }
+@media (max-width: 560px) { .case-invoice-drawer { width: 100%; }.case-invoice-drawer > header { padding: 18px; }.case-invoice-amount, .case-invoice-detail-grid, .case-invoice-acceptance, .case-invoice-services, .case-invoice-payments { margin-inline: 16px; }.case-invoice-actions { padding-inline: 16px; }.case-invoice-detail-grid { grid-template-columns: 1fr; } }

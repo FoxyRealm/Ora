@@ -24,6 +24,7 @@ import {
   DatabaseBackup,
   Download,
   FileDown,
+  FileText,
   Gauge,
   History,
   KeyRound,
@@ -107,6 +108,7 @@ import PaymentExchangeRateFields, { paymentAmountInUsd } from "../Components/Pay
 import { queueLedgerEntry } from "../Components/accountingLedger";
 import AccountingWorkspacePage from "./AccountingWorkspacePage";
 import DoctorPortalPage from "./DoctorPortalPage";
+import { printInvoicePages } from "../Components/InvoicePrint";
 import {
   startTransition,
   useEffect,
@@ -134,6 +136,8 @@ type ModalName =
   | "new-material"
   | "adjust-stock"
   | "price-list"
+  | "doctor-price-list"
+  | "clinic-price-list"
   | "doctor-account"
   | "doctor-portal-account"
   | "new-doctor"
@@ -617,23 +621,9 @@ async function printCaseStickerDocument(
 
 function printInvoiceDocument(data: OraData, labCase: LabCase) {
   const doctor = data.doctors.find((item) => item.id === labCase.doctorId);
-  const status = paymentState(labCase);
-  const serviceRows = caseServiceLines(labCase)
-    .map(
-      (line) =>
-        `<tr><td>${escapeHtml(line.service)}</td><td>${escapeHtml(line.shade)}</td><td class="num">${line.units}</td><td class="num">${escapeHtml(money(line.unitPrice, data.currency))}</td><td class="num">${escapeHtml(money(line.unitPrice * line.units, data.currency))}</td></tr>`,
-    )
-    .join("");
-  return printDocument(
-    `Invoice ${labCase.caseNumber}`,
-    `
-    <header class="print-head"><div class="print-brand">Ora<small>Dental Lab</small></div><div class="print-title"><h1>CASE INVOICE</h1><p>${escapeHtml(invoiceNumber(labCase))}</p></div></header>
-    <section class="print-meta"><div><small>Doctor account</small><strong>${escapeHtml(doctor?.name)}</strong><br>${escapeHtml(doctor?.clinic)}</div><div><small>Patient</small><strong>${escapeHtml(labCase.patient)}</strong><br>${escapeHtml(labCase.patientRef)}</div><div><small>Invoice date</small><strong>${escapeHtml(formatDate(labCase.receivedDate))}</strong></div><div><small>Case reference</small><strong>${escapeHtml(labCase.caseNumber)}</strong></div><div><small>Payment status</small><span class="status ${status === "Unpaid" ? "unpaid" : status === "Partially paid" ? "partial" : ""}">${escapeHtml(status)}</span></div></section>
-    <table><thead><tr><th>Service</th><th>Shade</th><th class="num">Teeth / units</th><th class="num">Unit price</th><th class="num">Amount</th></tr></thead><tbody>${serviceRows}</tbody></table>
-    <section class="print-totals"><div><span>Invoice total</span><strong>${escapeHtml(money(labCase.price, data.currency))}</strong></div><div><span>Paid</span><strong>${escapeHtml(money(labCase.paid, data.currency))}</strong></div><div class="grand"><span>Balance due</span><strong>${escapeHtml(money(labCase.price - labCase.paid, data.currency))}</strong></div></section>
-    <p class="print-note">Due ${escapeHtml(formatDue(labCase))}. A closed production case may retain an outstanding balance on the doctor account until payment is recorded.</p>
-  `,
-  );
+  const payments = data.payments.filter((payment) => payment.caseId === labCase.id).sort((first, second) => first.date.localeCompare(second.date));
+  const status = labCase.paid >= labCase.price ? "Paid" : labCase.paid > 0 ? "Partial" : isCaseOverdue(labCase) ? "Overdue" : "Sent";
+  return printInvoicePages([{ number: invoiceNumber(labCase), status, brandTitle: data.branding.title, brandSubtitle: data.branding.subtitle, doctor: doctor?.name ?? "Doctor", clinic: doctor?.clinic ?? "Independent practice", patient: labCase.patient || "Not recorded", issued: formatDate(labCase.receivedDate), caseNumber: labCase.caseNumber, services: caseServiceLines(labCase).map((line) => ({ service: line.service, shade: line.shade || "Not recorded", units: String(line.units), unitPrice: money(line.unitPrice, data.currency), amount: money(line.unitPrice * line.units, data.currency) })), payments: payments.map((payment) => ({ date: formatDateTime(payment.date), label: payment.amount < 0 ? "Payment correction" : "Payment received", amount: money(Math.abs(payment.amount), data.currency), negative: payment.amount < 0 })), total: money(labCase.price, data.currency), paid: money(labCase.paid, data.currency), balance: money(Math.max(0, labCase.price - labCase.paid), data.currency) }]);
 }
 
 function doctorStatementSnapshot(data: OraData, doctor: Doctor, start: string) {
@@ -2467,26 +2457,28 @@ export default function Home() {
       setToast("That service type already exists.");
       return false;
     }
+    const price = Math.max(0, defaultPrice);
+    const changedAt = new Date().toISOString();
     update((current) => ({
       ...current,
       serviceTypes: [...current.serviceTypes, cleanName],
       doctors: current.doctors.map((doctor) => ({
         ...doctor,
-        priceList: {
-          ...doctor.priceList,
-          [cleanName]: Math.max(0, defaultPrice),
-        },
+        priceList: { ...doctor.priceList, [cleanName]: price },
+        priceListApprovedAt: undefined,
+        priceListUpdates: [
+          ...(doctor.priceListUpdates ?? []),
+          {
+            id: uid("price-update"),
+            date: changedAt,
+            changes: [{ service: cleanName, previousPrice: null, nextPrice: price }],
+          },
+        ],
       })),
       clinicProfiles: Object.fromEntries(
         Object.entries(current.clinicProfiles).map(([clinic, profile]) => [
           clinic,
-          {
-            ...profile,
-            priceList: {
-              ...profile.priceList,
-              [cleanName]: Math.max(0, defaultPrice),
-            },
-          },
+          { ...profile, priceList: { ...profile.priceList, [cleanName]: price } },
         ]),
       ),
     }));
@@ -4030,7 +4022,7 @@ export default function Home() {
     setToast(`${doctor.name} added.`);
   }
 
-  function savePriceList(event: FormEvent<HTMLFormElement>) {
+  function saveDoctorDetails(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedDoctorId || !hasPermission(ora, activeStaff, "case_intake"))
       return;
@@ -4052,29 +4044,93 @@ export default function Home() {
               practiceType,
               clinic,
               priceList:
-                practiceType === "individual"
-                  ? (Object.fromEntries(
-                      current.serviceTypes.map((service) => [
-                        service,
-                        Number(form.get(service)),
-                      ]),
-                    ) as Doctor["priceList"])
-                  : (current.clinicProfiles[clinic]?.priceList ??
-                    doctor.priceList),
+                practiceType === "clinic"
+                  ? (current.clinicProfiles[clinic]?.priceList ?? doctor.priceList)
+                  : doctor.priceList,
             }
           : doctor,
       ),
     }));
     addActivity(
-      `Updated doctor ${String(form.get("name")).trim()} and price list`,
+      `Updated doctor ${String(form.get("name")).trim()} details`,
       activeStaff.id,
       "doctor",
       selectedDoctorId,
     );
     setModal(null);
-    setToast(
-      "Doctor details and price list updated. Existing case prices were kept unchanged.",
-    );
+    setToast("Doctor details updated.");
+  }
+
+  function saveDoctorPriceList(doctorId: string, prices: Record<string, number>) {
+    if (!hasPermission(ora, activeStaff, "case_intake")) return;
+    const target = ora.doctors.find((doctor) => doctor.id === doctorId);
+    if (target?.practiceType === "clinic") {
+      saveClinicPriceList(target.clinic, prices);
+      return;
+    }
+    const changedAt = new Date().toISOString();
+    let changedCount = 0;
+    update((current) => ({
+      ...current,
+      doctors: current.doctors.map((doctor) => {
+        if (doctor.id !== doctorId) return doctor;
+        const previous = doctor.practiceType === "clinic"
+          ? current.clinicProfiles[doctor.clinic]?.priceList ?? doctor.priceList
+          : doctor.priceList;
+        const changes = priceListChanges(current.serviceTypes, previous, prices);
+        changedCount = changes.length;
+        if (!changes.length) return doctor;
+        return {
+          ...doctor,
+          priceList: { ...doctor.priceList, ...prices },
+          priceListApprovedAt: undefined,
+          priceListUpdates: [...(doctor.priceListUpdates ?? []), { id: uid("price-update"), date: changedAt, changes }],
+        };
+      }),
+    }));
+    if (!changedCount) {
+      setToast("No price changes were made.");
+      return;
+    }
+    addActivity("Updated doctor price list", activeStaff.id, "doctor", doctorId);
+    setToast(`Price list updated. The doctor received a change request for ${changedCount} service${changedCount === 1 ? "" : "s"}.`);
+  }
+
+  function saveClinicPriceList(clinic: string, prices: Record<string, number>) {
+    if (!hasPermission(ora, activeStaff, "case_intake")) return;
+    const changedAt = new Date().toISOString();
+    let changedDoctors = 0;
+    update((current) => {
+      const previous = current.clinicProfiles[clinic]?.priceList ?? {};
+      const changes = priceListChanges(current.serviceTypes, previous, prices);
+      if (!changes.length) return current;
+      return {
+        ...current,
+        clinicProfiles: {
+          ...current.clinicProfiles,
+          [clinic]: {
+            ...(current.clinicProfiles[clinic] ?? { phone: "", address: "", notes: "", priceList: {} }),
+            priceList: prices,
+          },
+        },
+        doctors: current.doctors.map((doctor) => {
+          if (doctor.clinic !== clinic) return doctor;
+          changedDoctors += 1;
+          return {
+            ...doctor,
+            priceList: { ...doctor.priceList, ...prices },
+            priceListApprovedAt: undefined,
+            priceListUpdates: [...(doctor.priceListUpdates ?? []), { id: uid("price-update"), date: changedAt, changes }],
+          };
+        }),
+      };
+    });
+    if (!changedDoctors) {
+      setToast("No price changes were made.");
+      return;
+    }
+    addActivity(`Updated shared price list for ${clinic}`, activeStaff.id, "clinic", clinic);
+    setToast(`Shared price list updated. ${changedDoctors} doctor${changedDoctors === 1 ? "" : "s"} received the change request.`);
   }
 
   function removeDoctor(doctor: Doctor) {
@@ -4638,13 +4694,18 @@ export default function Home() {
     phone: string,
     address: string,
     notes: string,
-    prices: Record<string, number>,
+    prices?: Record<string, number>,
   ) {
     update((current) => ({
       ...current,
       clinicProfiles: {
         ...current.clinicProfiles,
-        [name]: { phone, address, notes, priceList: prices },
+        [name]: {
+          phone,
+          address,
+          notes,
+          priceList: prices ?? current.clinicProfiles[name]?.priceList ?? Object.fromEntries(current.serviceTypes.map((service) => [service, 0])),
+        },
       },
     }));
     if (selectedClinic) setSelectedClinic(name);
@@ -4882,6 +4943,14 @@ export default function Home() {
                 onEdit={(id) => {
                   setSelectedDoctorId(id);
                   setModal("price-list");
+                }}
+                onDoctorPriceList={(id) => {
+                  setSelectedDoctorId(id);
+                  setModal("doctor-price-list");
+                }}
+                onClinicPriceList={(clinic) => {
+                  setSelectedClinic(clinic);
+                  setModal("clinic-price-list");
                 }}
                 onAccount={(id) => {
                   setSelectedDoctorId(id);
@@ -5159,12 +5228,27 @@ export default function Home() {
         <PriceModal
           doctor={data.doctors.find((item) => item.id === selectedDoctorId)!}
           clinics={data.clinics}
-          serviceTypes={data.serviceTypes}
-          currency={data.currency}
           onAddClinic={addClinic}
-          onAddService={addServiceType}
           onClose={() => setModal(null)}
-          onSubmit={savePriceList}
+          onSubmit={saveDoctorDetails}
+        />
+      )}
+      {modal === "doctor-price-list" && selectedDoctorId && (
+        <DoctorPriceListModal
+          data={data}
+          doctor={data.doctors.find((item) => item.id === selectedDoctorId)!}
+          canManage={intakeAllowed}
+          onSave={saveDoctorPriceList}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal === "clinic-price-list" && selectedClinic && (
+        <ClinicPriceListModal
+          data={data}
+          clinic={selectedClinic}
+          canManage={intakeAllowed}
+          onSave={saveClinicPriceList}
+          onClose={() => setModal(null)}
         />
       )}
       {modal === "doctor-account" &&
@@ -5271,6 +5355,25 @@ export default function Home() {
       )}
     </div>
   );
+}
+
+function priceListChanges(
+  services: string[],
+  previous: Record<string, number>,
+  next: Record<string, number>,
+) {
+  return services.flatMap((service) => {
+    const previousPrice = previous[service];
+    const nextPrice = Math.max(0, Number(next[service]) || 0);
+    return previousPrice === nextPrice
+      ? []
+      : [{
+          service,
+          previousPrice:
+            typeof previousPrice === "number" ? previousPrice : null,
+          nextPrice,
+        }];
+  });
 }
 
 type ShellProps = {
@@ -8415,6 +8518,8 @@ export function DoctorsView({
   onCreateClinic,
   onClinics,
   onEdit,
+  onDoctorPriceList,
+  onClinicPriceList,
   onAccount,
   onPortalAccount,
   onOpenPortal,
@@ -8432,6 +8537,8 @@ export function DoctorsView({
   onCreateClinic: () => void;
   onClinics: (clinic?: string) => void;
   onEdit: (id: string) => void;
+  onDoctorPriceList: (id: string) => void;
+  onClinicPriceList: (clinic: string) => void;
   onAccount: (id: string) => void;
   onPortalAccount: (id: string) => void;
   onOpenPortal: (id: string) => void;
@@ -8505,6 +8612,14 @@ export function DoctorsView({
                 Account
               </button>
             )}
+            <button
+              className="secondary-button compact"
+              type="button"
+              onClick={() => onDoctorPriceList(doctor.id)}
+            >
+              <FileText size={15} />
+              Price list
+            </button>
             {canManagePortal && (
               <button
                 className="secondary-button compact"
@@ -8592,6 +8707,9 @@ export function DoctorsView({
                           <WalletCards size={15} /> Account
                         </button>
                       )}
+                      <button type="button" onClick={() => { setMobileDoctorActionId(null); onDoctorPriceList(doctor.id); }}>
+                        <FileText size={15} /> Price list
+                      </button>
                       {canManagePortal && (
                         <button type="button" onClick={() => { setMobileDoctorActionId(null); onPortalAccount(doctor.id); }}>
                           <KeyRound size={15} /> {doctor.portalAccount ? "Portal login" : "Create portal"}
@@ -8766,6 +8884,14 @@ export function DoctorsView({
                       Statement
                     </button>
                   )}
+                  <button
+                    className="secondary-button compact"
+                    type="button"
+                    onClick={() => onClinicPriceList(clinic)}
+                  >
+                    <FileText size={15} />
+                    Price list
+                  </button>
                   {clinic !== "Independent practice" && canManage && (
                     <button
                       className="secondary-button compact"
@@ -8776,7 +8902,7 @@ export function DoctorsView({
                       Edit clinic
                     </button>
                   )}
-                  {clinic !== "Independent practice" && (canViewStatements || canManage) && (
+                  {(
                     <>
                       <button
                         className="icon-button clinic-mobile-actions-trigger"
@@ -8814,6 +8940,9 @@ export function DoctorsView({
                                   <ReceiptText size={15} /> Statement
                                 </button>
                               )}
+                              <button type="button" onClick={() => { setMobileClinicAction(null); onClinicPriceList(clinic); }}>
+                                <FileText size={15} /> Price list
+                              </button>
                               {canManage && (
                                 <button type="button" onClick={() => { setMobileClinicAction(null); onClinics(clinic); }}>
                                   <Pencil size={15} /> Edit clinic
@@ -12899,123 +13028,22 @@ function InvoiceModal({
   onClose: () => void;
 }) {
   const doctor = data.doctors.find((item) => item.id === labCase.doctorId);
+  const payments = data.payments
+    .filter((payment) => payment.caseId === labCase.id)
+    .sort((left, right) => right.date.localeCompare(left.date));
+  const remaining = Math.max(0, labCase.price - labCase.paid);
   return (
-    <Modal
-      title={`Invoice ${labCase.caseNumber}`}
-      subtitle={invoiceNumber(labCase)}
-      onClose={onClose}
-      wide
-    >
-      <div className="document-preview invoice-document">
-        <div className="document-head">
-          <div className="brand-lockup large">
-            <span className="brand-mark">O</span>
-            <div>
-              <strong>Ora</strong>
-              <small>Dental Lab</small>
-            </div>
-          </div>
-          <div>
-            <span>Case invoice</span>
-            <strong>{invoiceNumber(labCase)}</strong>
-          </div>
-        </div>
-        <div className="invoice-meta">
-          <span>
-            <small>Doctor account</small>
-            <strong>{doctor?.name}</strong>
-            <p>{doctor?.clinic}</p>
-          </span>
-          <span>
-            <small>Patient</small>
-            <strong>{labCase.patient}</strong>
-            <p>{labCase.patientRef}</p>
-          </span>
-          <span>
-            <small>Case</small>
-            <strong>{labCase.caseNumber}</strong>
-          </span>
-          <span>
-            <small>Date</small>
-            <strong>{formatDate(labCase.receivedDate)}</strong>
-            <p>Due {formatDue(labCase)}</p>
-          </span>
-          <span>
-            <small>Status</small>
-            <PaymentBadge labCase={labCase} />
-          </span>
-        </div>
-        <div className="invoice-explainer">
-          <ReceiptText size={17} />
-          <span>
-            <strong>This invoice adds a charge to the doctor account.</strong>
-            <small>
-              Its paid and remaining amounts are shown directly below.
-            </small>
-          </span>
-        </div>
-        <button
-          type="button"
-          aria-disabled="true"
-          tabIndex={-1}
-          className={`invoice-acceptance ${labCase.invoiceAcceptedAt ? "accepted" : "pending"}`}
-        >
-          {labCase.invoiceAcceptedAt ? <Check size={16} /> : <Hourglass size={16} />}
-          <span>
-            <strong>
-              {labCase.invoiceAcceptedAt
-                ? "Invoice accepted by doctor"
-                : "Invoice awaiting doctor acceptance"}
-            </strong>
-            <small>
-              {labCase.invoiceAcceptedAt
-                ? formatDate(labCase.invoiceAcceptedAt.slice(0, 10))
-                : "The doctor can accept this invoice from their portal."}
-            </small>
-          </span>
-        </button>
-        {caseServiceLines(labCase).map((line) => (
-          <div className="invoice-line" key={line.id}>
-            <span>
-              <strong>{line.service}</strong>
-              <small>Shade {line.shade}</small>
-            </span>
-            <span>{line.units} units</span>
-            <span>{money(line.unitPrice, data.currency)}</span>
-            <strong>{money(line.unitPrice * line.units, data.currency)}</strong>
-          </div>
-        ))}
-        <div className="invoice-totals">
-          <span>
-            <small>Total</small>
-            <strong>{money(labCase.price, data.currency)}</strong>
-          </span>
-          <span>
-            <small>Paid</small>
-            <strong>{money(labCase.paid, data.currency)}</strong>
-          </span>
-          <span className="balance">
-            <small>Balance due</small>
-            <strong>
-              {money(labCase.price - labCase.paid, data.currency)}
-            </strong>
-          </span>
-        </div>
-      </div>
-      <div className="modal-actions document-actions">
-        <button className="secondary-button" type="button" onClick={onClose}>
-          Close
-        </button>
-        <button
-          className="primary-button"
-          type="button"
-          onClick={() => printInvoiceDocument(data, labCase)}
-        >
-          <Printer size={16} />
-          Print invoice
-        </button>
-      </div>
-    </Modal>
+    <div className="case-invoice-drawer-backdrop" onMouseDown={(event) => event.currentTarget === event.target && onClose()}>
+      <aside className="case-invoice-drawer" role="dialog" aria-modal="true" aria-label={`Invoice ${invoiceNumber(labCase)} for case ${labCase.caseNumber}`}>
+        <header><div><span>Invoice</span><h2>{invoiceNumber(labCase)}</h2></div><button className="icon-button" type="button" onClick={onClose} aria-label="Close invoice"><X size={18} /></button></header>
+        <section className="case-invoice-amount"><small>Balance due</small><strong>{money(remaining, data.currency)}</strong><PaymentBadge labCase={labCase} /></section>
+        <section className="case-invoice-detail-grid"><div><small>Doctor</small><strong>{doctor?.name || "Doctor not recorded"}</strong></div><div><small>Patient</small><strong>{labCase.patient || "Patient not recorded"}</strong></div><div><small>Issued</small><strong>{formatDate(labCase.receivedDate)}</strong></div><div><small>Case</small><strong>{labCase.caseNumber}</strong></div></section>
+        <div className={`case-invoice-acceptance ${labCase.invoiceAcceptedAt ? "accepted" : "pending"}`}>{labCase.invoiceAcceptedAt ? <Check size={16} /> : <Hourglass size={16} />}<span><strong>{labCase.invoiceAcceptedAt ? "Invoice accepted by doctor" : "Invoice awaiting doctor acceptance"}</strong><small>{labCase.invoiceAcceptedAt ? formatDate(labCase.invoiceAcceptedAt.slice(0, 10)) : "Awaiting confirmation in the doctor portal."}</small></span></div>
+        <section className="case-invoice-services"><h3>Services</h3>{caseServiceLines(labCase).map((line) => <div key={line.id}><span><strong>{line.service}</strong><small>{line.units} units · Shade {line.shade}</small></span><strong>{money(line.unitPrice * line.units, data.currency)}</strong></div>)}<footer><span>Total</span><strong>{money(labCase.price, data.currency)}</strong></footer></section>
+        <section className="case-invoice-payments"><h3>Payment history</h3>{payments.map((payment) => <div key={payment.id}><span><strong>{payment.amount < 0 ? "Payment correction" : "Payment received"}</strong><small>{formatDateTime(payment.date)} · {payment.method || "Cash"} · {payment.reference || "No reference"}</small></span><b className={payment.amount < 0 ? "negative" : "positive"}>{payment.amount < 0 ? "-" : "+"}{money(Math.abs(payment.amount), data.currency)}</b></div>)}{!payments.length && <p>No payment has been recorded for this invoice yet.</p>}</section>
+        <footer className="case-invoice-actions"><button className="secondary-button" type="button" onClick={onClose}>Close</button><button className="primary-button" type="button" onClick={() => printInvoiceDocument(data, labCase)}><Printer size={16} />Print invoice</button></footer>
+      </aside>
+    </div>
   );
 }
 
@@ -14059,28 +14087,198 @@ function DoctorModal({
   );
 }
 
+function PriceListTable({
+  data,
+  prices,
+  editable = false,
+  onChange,
+}: {
+  data: OraData;
+  prices: Record<string, number>;
+  editable?: boolean;
+  onChange?: (service: string, price: number) => void;
+}) {
+  return (
+    <section className="lab-price-list-table" aria-label="Service prices">
+      <header>
+        <span>Service</span>
+        <span>Unit price</span>
+      </header>
+      {data.serviceTypes.map((service) => (
+        <div key={service}>
+          <strong title={service}>{service}</strong>
+          {editable ? (
+            <label className="lab-price-list-input">
+              <span>{data.currency}</span>
+              <input
+                aria-label={`${service} unit price`}
+                type="number"
+                min="0"
+                step="0.01"
+                value={prices[service] ?? 0}
+                onChange={(event) => onChange?.(service, Number(event.target.value))}
+              />
+            </label>
+          ) : (
+            <span>{money(prices[service] ?? 0, data.currency)} / unit</span>
+          )}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function PriceListApproval({ doctor }: { doctor: Doctor }) {
+  return (
+    <div className={`lab-price-list-approval ${doctor.priceListApprovedAt ? "approved" : "pending"}`}>
+      {doctor.priceListApprovedAt ? <CheckCircle2 size={16} /> : <Hourglass size={16} />}
+      <span>
+        <strong>{doctor.priceListApprovedAt ? "Approved for one-time use" : "Awaiting doctor approval"}</strong>
+        <small>{doctor.priceListApprovedAt ? `Confirmed ${formatDate(doctor.priceListApprovedAt.slice(0, 10))}` : "The doctor can approve this price list from their portal."}</small>
+      </span>
+    </div>
+  );
+}
+
+function DoctorPriceListModal({
+  data,
+  doctor,
+  canManage,
+  onSave,
+  onClose,
+}: {
+  data: OraData;
+  doctor: Doctor;
+  canManage: boolean;
+  onSave: (doctorId: string, prices: Record<string, number>) => void;
+  onClose: () => void;
+}) {
+  const isShared = doctor.practiceType === "clinic";
+  const prices = isShared
+    ? data.clinicProfiles[doctor.clinic]?.priceList ?? doctor.priceList
+    : doctor.priceList;
+  const [draftPrices, setDraftPrices] = useState<Record<string, number>>(() => ({ ...prices }));
+  return (
+    <Modal
+      title={`Price list · ${doctor.name}`}
+      subtitle={isShared ? `Shared with ${doctor.clinic}.` : "Individual practice pricing."}
+      onClose={onClose}
+      wide
+    >
+      <div className="lab-price-list-content">
+        <div className="lab-price-list-summary">
+          <FileText size={18} />
+          <div>
+            <strong>{doctor.name}</strong>
+            <small>{doctor.clinic}</small>
+          </div>
+          <span>{data.currency}</span>
+        </div>
+        <PriceListTable
+          data={data}
+          prices={canManage ? draftPrices : prices}
+          editable={canManage}
+          onChange={(service, price) => setDraftPrices((current) => ({ ...current, [service]: price }))}
+        />
+        <PriceListApproval doctor={doctor} />
+        <div className="modal-actions">
+          {canManage && (
+            <button className="primary-button" type="button" onClick={() => onSave(doctor.id, draftPrices)}>
+              Save price list
+            </button>
+          )}
+          <button className="secondary-button" type="button" onClick={onClose}>Done</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function ClinicPriceListModal({
+  data,
+  clinic,
+  canManage,
+  onSave,
+  onClose,
+}: {
+  data: OraData;
+  clinic: string;
+  canManage: boolean;
+  onSave: (clinic: string, prices: Record<string, number>) => void;
+  onClose: () => void;
+}) {
+  const doctors = data.doctors.filter((doctor) => doctor.active !== false && doctor.clinic === clinic);
+  const profile = data.clinicProfiles[clinic];
+  const independent = clinic === "Independent practice";
+  const [draftPrices, setDraftPrices] = useState<Record<string, number>>(() => ({ ...profile?.priceList }));
+  return (
+    <Modal
+      title={`Price list · ${clinic}`}
+      subtitle={independent ? "Each independent doctor keeps an individual price list." : "Shared pricing for every doctor linked to this clinic."}
+      onClose={onClose}
+      wide
+    >
+      <div className="lab-price-list-content">
+      {!independent ? (
+        <>
+          <div className="lab-price-list-summary">
+            <FileText size={18} />
+            <div>
+              <strong>{clinic}</strong>
+              <small>{doctors.length} linked doctor{doctors.length === 1 ? "" : "s"}</small>
+            </div>
+            <span>{data.currency}</span>
+          </div>
+          <PriceListTable
+            data={data}
+            prices={canManage ? draftPrices : profile?.priceList ?? doctors[0]?.priceList ?? {}}
+            editable={canManage}
+            onChange={(service, price) => setDraftPrices((current) => ({ ...current, [service]: price }))}
+          />
+          <section className="lab-price-list-approvals" aria-label="Doctor approval status">
+            <header><strong>Doctor approval status</strong><small>One-time approval of this price list</small></header>
+            {doctors.length ? doctors.map((doctor) => <PriceListApproval doctor={doctor} key={doctor.id} />) : <p>No doctors are linked to this clinic yet.</p>}
+          </section>
+        </>
+      ) : (
+        <section className="lab-independent-price-lists" aria-label="Independent doctor price lists">
+          {doctors.length ? doctors.map((doctor) => (
+            <article key={doctor.id}>
+              <div className="lab-price-list-summary">
+                <FileText size={18} />
+                <div><strong>{doctor.name}</strong><small>Independent practice</small></div>
+                <span>{data.currency}</span>
+              </div>
+              <PriceListTable data={data} prices={doctor.priceList} />
+              <PriceListApproval doctor={doctor} />
+            </article>
+          )) : <p>No independent doctors are listed yet.</p>}
+        </section>
+      )}
+      <div className="modal-actions">
+        {!independent && canManage && (
+          <button className="primary-button" type="button" onClick={() => onSave(clinic, draftPrices)}>Save price list</button>
+        )}
+        <button className="secondary-button" type="button" onClick={onClose}>Done</button>
+      </div>
+      </div>
+    </Modal>
+  );
+}
+
 function PriceModal({
   doctor,
   clinics,
-  serviceTypes,
-  currency,
   onAddClinic,
-  onAddService,
   onClose,
   onSubmit,
 }: {
   doctor: Doctor;
   clinics: string[];
-  serviceTypes: string[];
-  currency: OraData["currency"];
   onAddClinic: (name: string) => boolean;
-  onAddService: (name: string, defaultPrice: number) => boolean;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
-  const [adding, setAdding] = useState(false);
-  const [name, setName] = useState("");
-  const [price, setPrice] = useState(0);
   const [practiceType, setPracticeType] = useState<PracticeType>(
     doctor.practiceType,
   );
@@ -14090,7 +14288,7 @@ function PriceModal({
   return (
     <Modal
       title={`Edit ${doctor.name}`}
-      subtitle="Update contact details, practice and prices."
+      subtitle="Update contact details and practice."
       onClose={onClose}
       wide
     >
@@ -14134,85 +14332,6 @@ function PriceModal({
               onAddClinic={onAddClinic}
             />
           </div>
-        </div>
-        {practiceType === "individual" ? (
-          <>
-            <div className="catalog-modal-head doctor-price-head">
-              <span>{serviceTypes.length} service prices</span>
-              <button
-                className="secondary-button compact"
-                type="button"
-                onClick={() => setAdding((value) => !value)}
-              >
-                <Plus size={15} />
-                Add service
-              </button>
-            </div>
-            {adding && (
-              <div className="inline-creator">
-                <input
-                 
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Service name"
-                />
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={price}
-                  onChange={(event) => setPrice(Number(event.target.value))}
-                  placeholder="Default price"
-                />
-                <button
-                  className="secondary-button compact"
-                  type="button"
-                  onClick={() => {
-                    if (onAddService(name, price)) {
-                      setName("");
-                      setPrice(0);
-                      setAdding(false);
-                    }
-                  }}
-                >
-                  Add option
-                </button>
-              </div>
-            )}
-            <div className="price-list-form">
-              {serviceTypes.map((service) => (
-                <label className="field" key={service}>
-                  <span>{service}</span>
-                  <div className="money-input">
-                    <b>{currency}</b>
-                    <input
-                      name={service}
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      defaultValue={doctor.priceList[service] ?? 0}
-                      required
-                    />
-                  </div>
-                </label>
-              ))}
-            </div>
-          </>
-        ) : (
-          <div className="info-callout clinic-price-note">
-            <BadgeDollarSign size={18} />
-            <p>
-              This doctor uses the shared {clinic} price list. Edit that price
-              list from Manage clinics.
-            </p>
-          </div>
-        )}
-        <div className="info-callout">
-          <ShieldCheck size={18} />
-          <p>
-            Price changes apply to new cases only. Existing case values remain
-            locked for accurate statements.
-          </p>
         </div>
         <div className="modal-actions">
           <button className="secondary-button" type="button" onClick={onClose}>
@@ -15454,7 +15573,6 @@ function ClinicManagerModalV2({
     phone: string,
     address: string,
     notes: string,
-    prices: Record<string, number>,
   ) => void;
   onRemove: (name: string) => void;
   onClose: () => void;
@@ -15468,8 +15586,8 @@ function ClinicManagerModalV2({
       title={initialClinic ? `Edit ${initialClinic}` : "Clinic directory"}
       subtitle={
         initialClinic
-          ? "Update this clinic's details and shared price list."
-          : "Manage every clinic, its details, and shared price list."
+          ? "Update this clinic's contact details."
+          : "Manage every clinic and its contact details."
       }
       onClose={onClose}
       wide
@@ -15478,7 +15596,7 @@ function ClinicManagerModalV2({
         className={`clinic-manager ${initialClinic ? "single-clinic-manager" : ""}`}
       >
         {!initialClinic && (
-          <p className="clinic-manager-intro">Select a clinic to edit its contact details and shared service prices.</p>
+          <p className="clinic-manager-intro">Select a clinic to edit its contact details.</p>
         )}
         <div className="clinic-editor-list">
           {visibleClinics.map((clinic) => {
@@ -15534,12 +15652,6 @@ function ClinicManagerModalV2({
                         String(form.get("phone")),
                         String(form.get("address")),
                         String(form.get("notes")),
-                        Object.fromEntries(
-                          data.serviceTypes.map((service) => [
-                            service,
-                            Number(form.get(service)),
-                          ]),
-                        ),
                       );
                       if (!initialClinic) setEditing(null);
                     }}
@@ -15565,24 +15677,6 @@ function ClinicManagerModalV2({
                           rows={2}
                         />
                       </label>
-                    </div>
-                    <div className="price-list-form">
-                      {data.serviceTypes.map((service) => (
-                        <label className="field" key={service}>
-                          <span>{service}</span>
-                          <div className="money-input clinic-money-input">
-                            <b>{data.currency}</b>
-                            <input
-                              name={service}
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              defaultValue={profile?.priceList[service] ?? 0}
-                              required
-                            />
-                          </div>
-                        </label>
-                      ))}
                     </div>
                     <div className="modal-actions">
                       <button
