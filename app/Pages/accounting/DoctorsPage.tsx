@@ -13,7 +13,6 @@ type Target = { kind: "doctor"; id: string; label: string; clinic: string } | { 
 type StatementPeriod = "today" | "yesterday" | "this-week" | "last-week" | "this-month" | "last-month" | "this-year" | "last-year" | "custom";
 type PaymentRow = InvoicePayment & { invoice: Invoice };
 
-const today = "2026-08-11";
 const money = (amount: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(amount);
 const dateLabel = (value: string) => new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${value.slice(0, 10)}T12:00:00`));
 
@@ -27,25 +26,25 @@ function addDays(value: string, count: number) {
   return iso(date);
 }
 
-function periodRange(period: StatementPeriod, from: string, to: string) {
-  const base = new Date(`${today}T12:00:00`);
+function periodRange(period: StatementPeriod, from: string, to: string, referenceDate: string) {
+  const base = new Date(`${referenceDate}T12:00:00`);
   const thisWeekStart = new Date(base);
   thisWeekStart.setDate(base.getDate() - ((base.getDay() + 6) % 7));
   const lastWeekEnd = new Date(thisWeekStart);
   lastWeekEnd.setDate(thisWeekStart.getDate() - 1);
   const lastWeekStart = new Date(lastWeekEnd);
   lastWeekStart.setDate(lastWeekEnd.getDate() - 6);
-  const thisMonthStart = `${today.slice(0, 8)}01`;
+  const thisMonthStart = `${referenceDate.slice(0, 8)}01`;
   const lastMonthEnd = new Date(base.getFullYear(), base.getMonth(), 0, 12);
   const lastMonthStart = new Date(lastMonthEnd.getFullYear(), lastMonthEnd.getMonth(), 1, 12);
   const range: Record<Exclude<StatementPeriod, "custom">, [string, string]> = {
-    today: [today, today],
-    yesterday: [addDays(today, -1), addDays(today, -1)],
-    "this-week": [iso(thisWeekStart), today],
+    today: [referenceDate, referenceDate],
+    yesterday: [addDays(referenceDate, -1), addDays(referenceDate, -1)],
+    "this-week": [iso(thisWeekStart), referenceDate],
     "last-week": [iso(lastWeekStart), iso(lastWeekEnd)],
-    "this-month": [thisMonthStart, today],
+    "this-month": [thisMonthStart, referenceDate],
     "last-month": [iso(lastMonthStart), iso(lastMonthEnd)],
-    "this-year": [`${base.getFullYear()}-01-01`, today],
+    "this-year": [`${base.getFullYear()}-01-01`, referenceDate],
     "last-year": [`${base.getFullYear() - 1}-01-01`, `${base.getFullYear() - 1}-12-31`],
   };
   return period === "custom" ? [from, to] : range[period];
@@ -79,15 +78,23 @@ function printStatement(target: Target, invoices: Invoice[], payments: PaymentRo
   const popup = window.open("", "_blank", "width=820,height=900");
   if (!popup) return;
   const escape = (value: string | number) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-  popup.document.write(`<!doctype html><html><head><title>${escape(target.label)} statement</title><style>*{box-sizing:border-box}body{margin:0;padding:34px;color:#17211f;font-family:Arial,sans-serif;font-size:12px}.head{display:flex;justify-content:space-between;gap:24px;padding-bottom:18px;border-bottom:2px solid #15695f}.brand{color:#15695f;font-size:26px;font-weight:800}.brand small,.title small{display:block;margin-top:4px;color:#65726f;font-size:9px;letter-spacing:1px;text-transform:uppercase}.title{text-align:right}.title h1{margin:0;font-size:20px}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0}.summary div{padding:12px;border:1px solid #dce5e2;background:#f8fbfa}.summary small{display:block;color:#65726f;font-size:9px;text-transform:uppercase}.summary strong{display:block;margin-top:6px;font-size:16px}table{width:100%;border-collapse:collapse;margin-top:15px}th{padding:9px;background:#edf4f2;color:#4e625e;font-size:9px;text-align:left;text-transform:uppercase}th:last-child,td:last-child{text-align:right}td{padding:10px;border-bottom:1px solid #dde7e4}@media print{body{padding:0}@page{margin:16mm}}</style></head><body><header class="head"><div class="brand">Ora<small>Dental Laboratory</small></div><div class="title"><h1>Account statement</h1><small>${escape(target.label)} · ${escape(dateLabel(from))} to ${escape(dateLabel(to))}</small></div></header><section class="summary"><div><small>Invoiced</small><strong>${escape(money(total))}</strong></div><div><small>Payments</small><strong>${escape(money(paid))}</strong></div><div><small>Outstanding</small><strong>${escape(money(outstanding))}</strong></div></section><table><thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Details</th><th>Amount</th></tr></thead><tbody>${[...invoices.map((invoice) => `<tr><td>${escape(dateLabel(invoice.issued))}</td><td>Invoice</td><td>${escape(invoice.id)}</td><td>${escape(invoice.patient)} · ${escape(invoice.service)}</td><td>${escape(money(invoice.amount))}</td></tr>`), ...payments.map((payment) => `<tr><td>${escape(dateLabel(payment.date))}</td><td>Payment</td><td>${escape(payment.reference)}</td><td>${escape(payment.invoice.id)} · ${escape(payment.account)}</td><td>-${escape(money(payment.amount))}</td></tr>`)].join("")}</tbody></table><script>window.addEventListener('load',()=>setTimeout(()=>window.print(),120));<\/script></body></html>`);
+  const rows = [
+    ...invoices.map((invoice) => `<tr class="statement-invoice-row"><td>${escape(dateLabel(invoice.issued))}</td><td>Invoice</td><td>${escape(invoice.id)}</td><td>${escape(invoice.patient)} · ${escape(invoice.service)}</td><td>${escape(money(invoice.amount))}</td></tr>`),
+    ...payments.map((payment) => `<tr class="statement-payment-row"><td>${escape(dateLabel(payment.date))}</td><td>Payment</td><td>${escape(payment.reference)}</td><td>${escape(payment.invoice.id)} · ${escape(payment.account)}</td><td>-${escape(money(payment.amount))}</td></tr>`),
+  ].join("");
+  popup.document.write(`<!doctype html><html><head><title>${escape(target.label)} statement</title><style>*{box-sizing:border-box}body{margin:0;padding:34px;color:#17211f;font-family:Arial,sans-serif;font-size:12px}.head{display:flex;justify-content:space-between;gap:24px;padding-bottom:18px;border-bottom:2px solid #15695f}.brand{color:#15695f;font-size:26px;font-weight:800}.brand small,.title small{display:block;margin-top:4px;color:#65726f;font-size:9px;letter-spacing:1px;text-transform:uppercase}.title{text-align:right}.title h1{margin:0;font-size:20px}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0}.summary div{padding:12px;border:1px solid #dce5e2;background:#f8fbfa}.summary small{display:block;color:#65726f;font-size:9px;text-transform:uppercase}.summary strong{display:block;margin-top:6px;font-size:16px}table{width:100%;border-collapse:collapse;margin-top:15px}th{padding:9px;background:#edf4f2;color:#4e625e;font-size:9px;text-align:left;text-transform:uppercase}th:last-child,td:last-child{text-align:right}td{padding:10px;border-bottom:1px solid #dde7e4}.statement-payment-row td{background:#eff8f5}.statement-payment-row td:first-child{box-shadow:inset 3px 0 #79bdb0}.statement-payment-row td:nth-child(2){color:#176d60;font-weight:800}@media print{body{padding:0}@page{margin:16mm}}</style></head><body><header class="head"><div class="brand">Ora<small>Dental Laboratory</small></div><div class="title"><h1>Account statement</h1><small>${escape(target.label)} · ${escape(dateLabel(from))} to ${escape(dateLabel(to))}</small></div></header><section class="summary"><div><small>Invoiced</small><strong>${escape(money(total))}</strong></div><div><small>Payments</small><strong>${escape(money(paid))}</strong></div><div><small>Outstanding</small><strong>${escape(money(outstanding))}</strong></div></section><table><thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Details</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table><script>window.addEventListener('load',()=>setTimeout(()=>window.print(),120));<\/script></body></html>`);
+  const paymentRowStyle = popup.document.createElement("style");
+  paymentRowStyle.textContent = ".statement-payment-row td{background:#f3f4f4!important;box-shadow:none!important}.statement-payment-row td:nth-child(2){color:inherit;font-weight:inherit}";
+  popup.document.head.append(paymentRowStyle);
   popup.document.close();
 }
 
 function StatementModal({ target, invoices, payments, onClose }: { target: Target; invoices: Invoice[]; payments: PaymentRow[]; onClose: () => void }) {
+  const [referenceDate] = useState(() => iso(new Date()));
   const [period, setPeriod] = useState<StatementPeriod>("this-month");
-  const [from, setFrom] = useState(`${today.slice(0, 8)}01`);
-  const [to, setTo] = useState(today);
-  const [start, end] = periodRange(period, from, to);
+  const [from, setFrom] = useState(() => `${iso(new Date()).slice(0, 8)}01`);
+  const [to, setTo] = useState(() => iso(new Date()));
+  const [start, end] = periodRange(period, from, to, referenceDate);
   const scopedInvoices = invoices.filter((invoice) => invoice.issued >= start && invoice.issued <= end);
   const scopedPayments = payments.filter((payment) => payment.date >= start && payment.date <= end);
   const total = scopedInvoices.reduce((sum, invoice) => sum + invoice.amount, 0);

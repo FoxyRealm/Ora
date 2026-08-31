@@ -11944,7 +11944,6 @@ function CaseDrawerV2({
                   <input
                     name="patientRef"
                     defaultValue={labCase.patientRef}
-                    required
                   />
                 </label>
                 <label className="field">
@@ -13543,10 +13542,8 @@ function NewCaseModal({
             <label className="field">
               <span>{t("Order Number")}</span>
               <input
-               
                 name="patientRef"
                 placeholder="Clinic reference"
-                required
               />
             </label>
             <div className="field span-2">
